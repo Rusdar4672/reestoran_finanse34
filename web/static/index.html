@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Restaurant Finance</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="enhancements.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- СПЕЦИАЛЬНЫЙ ПАТЧ ОТ ОШИБКИ NULL -->
+  <script>
+    const origGet = document.getElementById;
+    document.getElementById = function(id) {
+      let el = origGet.call(document, id);
+      if (!el) {
+        el = document.createElement('div');
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      }
+      return el;
+    };
+  </script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <img
+        src="assets/restaurant-finance-logo.png"
+        alt="Restaurant Finance"
+        width="48"
+        height="48"
+        style="object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 5px 16px rgba(0,0,0,.18)"
+      >
+      <div>Restaurant<br>Finance</div>
+    </div>
+    <nav>
+      <button class="nav active" data-page="dashboard">Обзор</button>
+      <button class="nav" data-page="entries">Операции</button>
+      <button class="nav" data-page="plan">План</button>
+      <button class="nav" data-page="payroll">Сотрудники</button>
+      <button class="nav" data-page="rules">Правила</button>
+      <button class="nav" data-page="excel">Excel</button>
+      <button class="nav" data-page="pos">POS-системы</button>
+      <button class="nav" data-page="settings">Настройки</button>
+    </nav>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <h1 id="page-title">Финансовый обзор</h1>
+        <p id="status">Выберите или создайте ресторан</p>
+      </div>
+      <div class="filters">
+        <div class="shift-calendar">
+          <button id="shift-calendar-toggle" class="calendar-toggle" type="button" aria-expanded="false" aria-controls="shift-calendar-panel">
+            <span aria-hidden="true">▦</span> Смены
+          </button>
+          <div id="shift-calendar-panel" class="shift-calendar-panel" hidden>
+            <div class="calendar-heading">
+              <button id="calendar-prev" class="calendar-nav" type="button" aria-label="Предыдущий месяц">‹</button>
+              <strong id="calendar-month"></strong>
+              <button id="calendar-next" class="calendar-nav" type="button" aria-label="Следующий месяц">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+            <div id="shift-calendar-grid" class="calendar-grid"></div>
+            <p id="calendar-summary" class="calendar-summary"></p>
+          </div>
+        </div>
+        <select id="restaurant"></select>
+        <input id="from" type="date">
+        <input id="to" type="date">
+        <button id="refresh" class="primary">Обновить</button>
+      </div>
+    </header>
+
+    <section id="dashboard" class="page active">
+      <div class="cards">
+        <article class="card accent"><label>Выручка</label><strong id="kpi-revenue">—</strong></article>
+        <article class="card"><label>Валовая прибыль</label><strong id="kpi-gross">—</strong><small id="kpi-gross-margin"></small></article>
+        <article class="card"><label>EBITDA</label><strong id="kpi-ebitda">—</strong><small id="kpi-ebitda-margin"></small></article>
+        <article class="card"><label>Операционная прибыль</label><strong id="kpi-profit">—</strong><small id="kpi-profit-margin"></small></article>
+        <article class="card"><label>Точка безубыточности</label><strong id="kpi-break-even">—</strong></article>
+        <article class="card"><label>Денежный поток</label><strong id="kpi-cash">—</strong></article>
+      </div>
+
+      <div class="panel period-comparison">
+        <div class="panel-title"><h2>Сравнение периодов</h2><span id="comparison-periods" class="field-hint"></span></div>
+        <div class="comparison-grid">
+          <div><span>Выручка</span><strong id="comparison-revenue">—</strong><small id="comparison-revenue-delta"></small></div>
+          <div><span>Операционная прибыль</span><strong id="comparison-profit">—</strong><small id="comparison-profit-delta"></small></div>
+          <div><span>Денежный поток</span><strong id="comparison-cash">—</strong><small id="comparison-cash-delta"></small></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom: 18px;">
+        <div class="panel-title">
+          <h2>Динамика финансов</h2>
+          <div class="filters" style="gap: 6px;">
+            <select id="chart-interval" style="padding: 6px 10px; font-size: 12px;">
+              <option value="day">По дням</option>
+              <option value="category">По статьям (Структура)</option>
+            </select>
+          </div>
+        </div>
+        <div style="position: relative; height: 320px; width: 100%;">
+          <canvas id="financeChart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <h2>P&amp;L по статьям</h2>
+          <a id="export-link" class="button">Экспорт Excel</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Статья</th><th>Факт</th><th>План</th><th>Отклонение</th><th>% выручки</th></tr></thead>
+            <tbody id="pnl-lines"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="entries" class="page">
+      <div class="split">
+        <form id="entry-form" class="panel form">
+          <h2 id="entry-form-title">Новая операция</h2>
+          <label>Дата<input name="date" type="date" required title="Дата, к которой относится операция"></label>
+          <label>Тип<select name="direction" title="Доход — деньги пришли в ресторан; расход — деньги ушли"><option value="income">Доход</option><option value="expense">Расход</option></select></label>
+          <label>Сумма<input name="amount" inputmode="decimal" placeholder="0.00" required title="Положительная сумма операции"></label>
+          <label>Статья<select name="category_id" id="entry-category" title="Финансовая категория для отчётов"><option value="">Определить правилом</option></select></label>
+          <label>Способ оплаты<select name="payment_method" title="Канал, через который прошёл платёж"><option>cash</option><option>card</option><option>bank</option><option>other</option></select></label>
+          <label>Описание<input name="description" placeholder="Например, аренда за июль" title="Краткое описание операции"></label>
+          <label>Контрагент<input name="counterparty" title="Организация или человек, участвующий в операции"></label>
+          <label>Теги<input name="tags" placeholder="например: аренда, срочно" title="Несколько тегов через запятую"></label>
+          <button id="entry-submit" class="primary" type="submit">Сохранить операцию</button>
+          <button id="entry-cancel" class="secondary" type="button" hidden>Отменить редактирование</button>
+        </form>
+        <div class="panel">
+          <h2>Операции периода</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Дата</th><th>Описание</th><th>Статья</th><th>Тип</th><th>Теги</th><th>Сумма</th><th>Действия</th></tr></thead>
+              <tbody id="entry-lines"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="plan" class="page">
+      <div class="split">
+        <form id="plan-form" class="panel form">
+          <h2>План по статье</h2>
+          <label>Месяц<input name="month" id="plan-month" type="month" required></label>
+          <label>Статья<select name="category_id" id="plan-category"></select></label>
+          <label>Плановая сумма<input name="amount" required placeholder="0.00"></label>
+          <button class="primary">Сохранить план</button>
+        </form>
+        <div class="panel">
+          <h2>План/факт</h2>
+          <p>План задаётся по каждой статье и месяцу. В P&amp;L автоматически показывается отклонение факта.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="payroll" class="page">
+      <div class="split">
+        <div>
+          <form id="employee-form" class="panel form">
+            <h2>Новый сотрудник</h2>
+            <label>ФИО<input name="name" required></label>
+            <label>Должность<input name="position" required></label>
+            <label>Ставка в час<input name="hourly_rate" value="0"></label>
+            <label>Оклад<input name="monthly_rate" value="0"></label>
+            <label>KPI от выручки, %
+              <input name="kpi_percent" value="0" inputmode="decimal" placeholder="Например, 1,5" required>
+              <small class="field-hint">Введите процент: 1 = 1%, 1,5 = 1,5%</small>
+            </label>
+            <button class="primary">Сохранить</button>
+          </form>
+          <div class="panel employee-lists">
+            <h2>Сотрудники</h2>
+            <div class="employee-list-columns">
+              <div><h3>Активные</h3><ul id="active-employee-list"></ul></div>
+              <div><h3>Уволенные</h3><ul id="inactive-employee-list"></ul></div>
+            </div>
+          </div>
+          <form id="shift-form" class="panel form stacked">
+            <h2>Добавить смену</h2>
+            <label>Сотрудник<select name="employee_id" id="shift-employee"></select></label>
+            <label>Дата<input name="date" type="date" required></label>
+            <label>Часы<input name="hours" required></label>
+            <label>Бонус<input name="bonus" value="0"></label>
+            <label>Аванс<input name="advance" value="0"></label>
+            <label>Удержание<input name="deduction" value="0"></label>
+            <button class="primary">Добавить смену</button>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-title"><h2>Расчёт зарплаты</h2><button id="payroll-export" class="secondary">Экспорт Excel</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Сотрудник</th><th>Смены</th><th>Часы</th><th>Начислено</th><th>KPI</th><th>К выплате</th><th>Действия</th></tr></thead>
+              <tbody id="payroll-lines"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="rules" class="page">
+      <div class="rule-intro">
+        <h2>Конструктор правил</h2>
+        <p>Правила назначают статью операции или рассчитывают сумму по формуле: источник × коэффициент + фиксированная сумма.</p>
+      </div>
+      <div class="split">
+        <form id="rule-form" class="panel form">
+          <label>Название<input name="name" required></label>
+          <label>Тип<select name="rule_type" id="rule-type"><option value="classification">Классификация</option><option value="calculation">Расчёт</option></select></label>
+          <label>Приоритет<input name="priority" type="number" value="100"></label>
+          <div id="classification-fields">
+            <label>Поле<select name="match_field"><option value="description">Описание</option><option value="counterparty">Контрагент</option><option value="payment_method">Способ оплаты</option><option value="source">Источник</option><option value="direction">Доход/расход</option><option value="amount">Сумма</option></select></label>
+            <label>Условие<select name="match_operator"><option value="contains">Содержит</option><option value="equals">Равно</option><option value="starts_with">Начинается с</option><option value="ends_with">Заканчивается на</option><option value="not_contains">Не содержит</option><option value="greater_than">Больше</option><option value="greater_or_equal">Больше или равно</option><option value="less_than">Меньше</option><option value="less_or_equal">Меньше или равно</option></select></label>
+            <label>Значение<input name="match_value"></label>
+          </div>
+          <div id="calculation-fields" hidden>
+            <label>Источник-метрика<select name="source_metric"><option value="revenue">Вся выручка</option><option value="cogs">Вся себестоимость</option><option value="payroll">ФОТ</option><option value="controlled_expenses">Контролируемые расходы</option></select></label>
+            <label>Операция<select name="operation"><option value="percent_of">Процент от источника</option><option value="copy">Копировать сумму</option><option value="fixed">Фиксированная сумма</option></select></label>
+            <label>Коэффициент<input name="rate" value="0.018" placeholder="0.018 = 1,8%"></label>
+            <label>Фиксированная сумма<input name="fixed_amount" value="0"></label>
+          </div>
+          <label>Целевая статья<select name="target_category_id" id="rule-category"></select></label>
+          <button class="primary" type="submit">Добавить правило</button>
+        </form>
+        <div class="panel"><h2>Активные правила</h2><div id="rule-list" class="rule-list"></div></div>
+      </div>
+    </section>
+
+    <section id="excel" class="page">
+      <div class="split">
+        <div class="panel form">
+          <h2>Импорт Excel</h2>
+          <p>Выберите файл, проверьте лист и сопоставьте номера колонок. В desktop откроется системное окно Windows.</p>
+          <input id="excel-file" type="file" accept=".xlsx,.xlsm">
+          <button id="excel-preview" class="secondary">Выбрать и показать файл</button>
+          <label class="checkbox"><input id="template-mode" type="checkbox"> Автоматически распознать образец P&amp;L/ДДС</label>
+          <label>Месяц образца<input id="template-month" type="month"></label>
+          <label>Лист<select id="excel-sheet"></select></label>
+          <div class="mapping-grid">
+            <label>Дата<input id="map-date" type="number" value="0"></label>
+            <label>Сумма<input id="map-amount" type="number" value="1"></label>
+            <label>Доход/расход<input id="map-direction" type="number" value="2"></label>
+            <label>Описание<input id="map-description" type="number" value="3"></label>
+            <label>Контрагент<input id="map-counterparty" type="number" value="4"></label>
+            <label>Оплата<input id="map-payment" type="number" value="5"></label>
+            <label>Код статьи<input id="map-category" type="number" value="6"></label>
+          </div>
+          <label class="checkbox"><input id="map-header" type="checkbox" checked> Первая строка — заголовки</label>
+          <button id="excel-import" class="primary">Импортировать</button>
+        </div>
+        <div class="panel excel-preview-panel">
+          <h2>Предварительный просмотр</h2>
+          <div id="excel-output" class="excel-output">
+            <p class="excel-empty">Файл ещё не выбран</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pos" class="page">
+      <div class="split">
+        <form id="pos-form" class="panel form">
+          <h2>Новое подключение</h2>
+          <label>Название<input name="name" required placeholder="R-Keeper основная касса"></label>
+          <label>Провайдер<select name="provider"><option value="rkeeper">R-Keeper</option><option value="iiko">iiko</option><option value="generic">Другой JSON API</option></select></label>
+          <label>URL API<input name="base_url" required></label>
+          <label>API-ключ<input name="api_key" type="password"></label>
+          <button class="primary">Сохранить подключение</button>
+        </form>
+        <div class="panel"><h2>Подключённые системы</h2><div id="pos-list" class="rule-list"></div></div>
+      </div>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="split">
+        <form id="restaurant-form" class="panel form">
+          <h2>Создать ресторан</h2>
+          <label>Название<input name="name" required></label>
+          <label>Валюта<input name="currency" value="RUB"></label>
+          <button class="primary">Создать</button>
+        </form>
+        <form id="category-form" class="panel form">
+          <h2>Добавить статью</h2>
+          <label>Название<input name="name" required></label>
+          <label>Код<input name="code" required></label>
+          <label>Раздел<select name="kind"><option value="revenue">Выручка</option><option value="cogs">Себестоимость</option><option value="controlled_expense">Контролируемый расход</option><option value="payroll">ФОТ</option><option value="uncontrolled_expense">Неконтролируемый расход</option><option value="overhead">Накладной расход</option><option value="depreciation">Амортизация</option><option value="tax">Налог</option><option value="cash_in">Поступление ДДС</option><option value="cash_out">Выплата ДДС</option></select></label>
+          <label>Отчёт<select name="report"><option value="BOTH">P&amp;L и ДДС</option><option value="PNL">Только P&amp;L</option><option value="DDS">Только ДДС</option></select></label>
+          <button class="primary">Добавить статью</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

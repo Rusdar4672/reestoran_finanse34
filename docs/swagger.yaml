@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: Restaurant Finance API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /restaurants:
+    get:
+      summary: Список ресторанов
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Создать ресторан и базовые статьи
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                currency: {type: string, example: RUB}
+      responses:
+        "201":
+          description: Created
+  /restaurants/{id}/entries:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: {type: integer}
+    get:
+      summary: Операции за период
+      parameters:
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+        - in: query
+          name: category_id
+          schema: {type: integer}
+        - in: query
+          name: direction
+          schema: {type: string, enum: [income, expense]}
+        - in: query
+          name: q
+          schema: {type: string}
+        - in: query
+          name: limit
+          schema: {type: integer, maximum: 500, default: 200}
+        - in: query
+          name: offset
+          schema: {type: integer, default: 0}
+      responses:
+        "200": {description: OK}
+    post:
+      summary: Добавить ручную операцию
+      responses:
+        "201": {description: Created}
+  /restaurants/{id}/rules:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: {type: integer}
+    get:
+      summary: Список правил
+      responses:
+        "200": {description: OK}
+    post:
+      summary: Создать классификационное или расчётное правило
+      responses:
+        "201": {description: Created}
+  /restaurants/{id}/reports/pnl:
+    get:
+      summary: P&L
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer}
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+      responses:
+        "200": {description: OK}
+  /restaurants/{id}/reports/dashboard:
+    get:
+      summary: Объединённый P&L, ДДС, зарплата и точка безубыточности
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer}
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+      responses:
+        "200": {description: OK}
+  /restaurants/{id}/reports/cash-flow:
+    get:
+      summary: ДДС
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer}
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+      responses:
+        "200": {description: OK}
+  /excel/preview:
+    post:
+      summary: Предварительный просмотр Excel
+      responses:
+        "200": {description: OK}
+  /restaurants/{id}/excel/import:
+    post:
+      summary: Импорт Excel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer}
+      responses:
+        "200": {description: OK}
+  /restaurants/{id}/excel/export:
+    get:
+      summary: Экспорт P&L, ДДС и зарплаты
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {type: integer}
+        - {$ref: "#/components/parameters/From"}
+        - {$ref: "#/components/parameters/To"}
+      responses:
+        "200":
+          description: XLSX
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
+components:
+  parameters:
+    From:
+      in: query
+      name: from
+      required: true
+      schema: {type: string, format: date}
+    To:
+      in: query
+      name: to
+      required: true
+      schema: {type: string, format: date}

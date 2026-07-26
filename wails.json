@@ -1,0 +1,12 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "restaurant-finance",
+  "outputfilename": "RestaurantFinance",
+  "frontend:dir": "web",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "author": {
+    "name": "Restaurant Finance"
+  }
+}
